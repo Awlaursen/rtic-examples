@@ -20,7 +20,7 @@ mod app {
     // Needed even if we don't use it
     #[shared]
     struct Shared {
-        buffer: Vec<u8, 32>,
+        buffer: Vec<u8, 6>,
     }
 
     // Holds the local resources (used by a single task)
@@ -39,7 +39,7 @@ mod app {
         let mut _device: stm32f4xx_hal::pac::Peripherals = ctx.device;
         let mut _core: cortex_m::Peripherals = ctx.core;
 
-        rtic_examples::configure_clock!(_device, _core, 180.MHz());
+        rtic_examples::configure_clock!(_device, _core, 84.MHz());
 
         // Set up the LED. On the Nucleo-F446RE it's connected to pin PA5.
         let gpioa = _device.GPIOA.split();
@@ -76,7 +76,6 @@ mod app {
     // Producer task that pushes a value to the buffer
     #[task(priority = 2, shared = [buffer])]
     async fn producer(ctx: producer::Context) {
-        defmt::info!("Producer");
         Systick::delay(1.secs().into()).await;
 
         // Access the shared resources
@@ -84,14 +83,13 @@ mod app {
 
         match buffer.lock(|b| b.push(1)) {
             Ok(()) => {
-                defmt::info!("Pushed 1");
+                defmt::info!("PRODUCER: Pushed 1");
             }
             Err(_) => {
-                defmt::info!("Buffer full");
+                defmt::info!("PRODUCER: Buffer full");
             }
         };
 
-        defmt::info!("Producer done");
         consumer::spawn().ok();
     }
 
@@ -106,14 +104,12 @@ mod app {
 
         buffer.lock(|b| {
             if b.is_full() {
-                defmt::info!("Buffer full, popping all values");
+                defmt::info!("CONSUMER: Buffer full, popping all values");
                 while let Some(value) = b.pop() {
-                    defmt::info!("Popped {}", value);
+                    defmt::info!("CONSUMER: Popped {}", value);
                 }
-            } else if b.is_empty() {
-                defmt::info!("Buffer empty");
             } else {
-                defmt::info!("Buffer has {} elements", b.len());
+                defmt::info!("CONSUMER: Buffer is: {}", b.as_slice());
             }
         });
 

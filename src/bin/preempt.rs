@@ -4,10 +4,7 @@
 #![feature(type_alias_impl_trait)]
 
 use rtic_examples as _; // global logger + panicking-behavior
-use rtic_monotonics::{
-    systick::Systick,
-    Monotonic,
-};
+use rtic_monotonics::{systick::Systick, Monotonic};
 use stm32f4xx_hal::{
     gpio::{gpioa::PA5, Output, PushPull},
     prelude::*,
@@ -15,8 +12,8 @@ use stm32f4xx_hal::{
 
 #[rtic::app(device = stm32f4xx_hal::pac, dispatchers = [USART1, USART2])]
 mod app {
-    use defmt::info;
     use super::*;
+    use defmt::info;
 
     // Holds the shared resources (used by multiple tasks)
     // Needed even if we don't use it
@@ -39,7 +36,7 @@ mod app {
         let mut _device: stm32f4xx_hal::pac::Peripherals = ctx.device;
         let mut _core: cortex_m::Peripherals = ctx.core;
 
-        rtic_examples::configure_clock!(_device, _core, 180.MHz());
+        rtic_examples::configure_clock!(_device, _core, 84.MHz());
 
         // Set up the LED. On the Nucleo-F446RE it's connected to pin PA5.
         let gpioa = _device.GPIOA.split();
@@ -47,6 +44,7 @@ mod app {
 
         defmt::info!("Init done!");
         blink::spawn().ok();
+        higher_priority::spawn().ok();
         (Shared {}, Local { led })
     }
 
@@ -67,19 +65,21 @@ mod app {
             defmt::info!("Blink!");
             Systick::delay_until(t + 500.millis()).await;
         }
-        
     }
 
     // Higher priority tasks preempt lower priority tasks
     #[task(priority = 2)]
     async fn higher_priority(_: higher_priority::Context) {
-        defmt::info!("Higher priority task");
+        loop {
+            Systick::delay(2.secs().into()).await;
+            defmt::info!("Higher priority task");
 
-        // simulate a long running task
-        for _ in 0..500_000 {
-            cortex_m::asm::nop();
+            // simulate a long running task
+            for _ in 0..2_000_000 {
+                cortex_m::asm::nop();
+            }
+
+            defmt::info!("Higher priority task done");
         }
-
-        defmt::info!("Higher priority task done");
     }
 }

@@ -39,7 +39,7 @@ mod app {
         // Device specific peripherals
         let mut _device: stm32f4xx_hal::pac::Peripherals = ctx.device;
 
-        rtic_examples::configure_clock!(_device, _core, 180.MHz());
+        rtic_examples::configure_clock!(_device, _core, 84.MHz());
 
         // Set up the LED. On the Nucleo-F446RE it's connected to pin PA5.
         let gpioa = _device.GPIOA.split();
