@@ -1,20 +1,27 @@
 #![no_main]
 #![no_std]
-#![deny(warnings)]
-#![feature(type_alias_impl_trait)]
 
-use heapless::Vec;
-use rtic_examples as _; // global logger + panicking-behavior
-use rtic_monotonics::{systick::Systick, Monotonic};
-use stm32f4xx_hal::{
-    gpio::{gpioa::PA5, Output, PushPull},
-    prelude::*,
-};
+use defmt_rtt as _; // global logger
+use fugit as _; // time units
+use panic_probe as _; // panic handler
+use stm32f4xx_hal as _; // memory layout // time abstractions
+
+const SYSTICK_FREQ: u32 = 1_000;
+const CLOCK_FREQ: u32 = 60_000_000;
+
+use rtic_monotonics::{stm32::prelude::*, systick_monotonic};
+systick_monotonic!(Mono, SYSTICK_FREQ);
 
 #[rtic::app(device = stm32f4xx_hal::pac, dispatchers = [USART1, USART2, USART6])]
 mod app {
+    use stm32f4xx_hal::{
+        gpio::{Output, PushPull, PA5},
+        prelude::*,
+    }
+    ;
+    use defmt::{debug, info};
+    use heapless::Vec;
     use super::*;
-    use defmt::info;
 
     // Holds the shared resources (used by multiple tasks)
     // Needed even if we don't use it
@@ -35,14 +42,13 @@ mod app {
     fn init(ctx: init::Context) -> (Shared, Local) {
         info!("init");
 
-        // Device specific peripherals
-        let mut _device: stm32f4xx_hal::pac::Peripherals = ctx.device;
-        let mut _core: cortex_m::Peripherals = ctx.core;
-
-        rtic_examples::configure_clock!(_device, _core, 84.MHz());
+        // Configure the clock
+        let clocks = ctx.device.RCC.constrain().cfgr.sysclk(CLOCK_FREQ.Hz()).freeze();
+        debug!("Clocks : {}", clocks);
+        Mono::start(ctx.core.SYST, CLOCK_FREQ);
 
         // Set up the LED. On the Nucleo-F446RE it's connected to pin PA5.
-        let gpioa = _device.GPIOA.split();
+        let gpioa = ctx.device.GPIOA.split();
         let led = gpioa.pa5.into_push_pull_output();
 
         // Create a buffer
@@ -66,17 +72,17 @@ mod app {
     #[task(local = [led], priority = 1)]
     async fn blink(ctx: blink::Context) {
         loop {
-            let t = Systick::now();
+            let t = Mono::now();
             ctx.local.led.toggle();
             defmt::info!("Blink!");
-            Systick::delay_until(t + 500.millis()).await;
+            Mono::delay_until(t + 500_u64.millis()).await;
         }
     }
 
     // Producer task that pushes a value to the buffer
     #[task(priority = 2, shared = [buffer])]
     async fn producer(ctx: producer::Context) {
-        Systick::delay(1.secs().into()).await;
+        Mono::delay(1_u64.secs().into()).await;
 
         // Access the shared resources
         let mut buffer = ctx.shared.buffer;
@@ -97,7 +103,7 @@ mod app {
     #[task(priority = 3, shared = [buffer])]
     async fn consumer(ctx: consumer::Context) {
         defmt::info!("Consumer");
-        Systick::delay(1.secs().into()).await;
+        Mono::delay(1_u64.secs().into()).await;
 
         // Access the shared resources
         let mut buffer = ctx.shared.buffer;

@@ -1,19 +1,24 @@
 #![no_main]
 #![no_std]
-#![deny(warnings)]
-#![feature(type_alias_impl_trait)]
 
-use rtic_examples as _; // global logger + panicking-behavior
-use rtic_monotonics::{systick::Systick, Monotonic};
-use stm32f4xx_hal::{
-    gpio::{gpioa::PA5, Output, PushPull},
-    prelude::*,
-};
+use defmt_rtt as _; // global logger
+use fugit as _; // time units
+use panic_probe as _; // panic handler
+use stm32f4xx_hal as _; // memory layout // time abstractions
+
+const SYSTICK_FREQ: u32 = 1_000;
+const CLOCK_FREQ: u32 = 60_000_000;
+
+use rtic_monotonics::{stm32::prelude::*, systick_monotonic};
+systick_monotonic!(Mono, SYSTICK_FREQ);
 
 #[rtic::app(device = stm32f4xx_hal::pac, dispatchers = [USART1, USART2])]
 mod app {
+    use stm32f4xx_hal::
+        gpio::{Output, PushPull, PA5}
+    ;
+    use defmt::{debug, info};
     use super::*;
-    use defmt::info;
 
     // Holds the shared resources (used by multiple tasks)
     // Needed even if we don't use it
@@ -32,14 +37,14 @@ mod app {
     fn init(ctx: init::Context) -> (Shared, Local) {
         info!("init");
 
-        // Device specific peripherals
-        let mut _device: stm32f4xx_hal::pac::Peripherals = ctx.device;
-        let mut _core: cortex_m::Peripherals = ctx.core;
-
-        rtic_examples::configure_clock!(_device, _core, 84.MHz());
+        // Configure the clock
+        let rcc = ctx.device.RCC.constrain();
+        let clocks = rcc.cfgr.sysclk(CLOCK_FREQ.Hz()).freeze();
+        debug!("Clocks : {}", clocks);
+        Mono::start(ctx.core.SYST, CLOCK_FREQ);
 
         // Set up the LED. On the Nucleo-F446RE it's connected to pin PA5.
-        let gpioa = _device.GPIOA.split();
+        let gpioa = ctx.device.GPIOA.split();
         let led = gpioa.pa5.into_push_pull_output();
 
         defmt::info!("Init done!");
@@ -60,10 +65,10 @@ mod app {
     #[task(local = [led], priority = 1)]
     async fn blink(ctx: blink::Context) {
         loop {
-            let t = Systick::now();
+            let t = Mono::now();
             ctx.local.led.toggle();
             defmt::info!("Blink!");
-            Systick::delay_until(t + 500.millis()).await;
+            Mono::delay_until(t + 500_u64.millis()).await;
         }
     }
 
@@ -71,7 +76,7 @@ mod app {
     #[task(priority = 2)]
     async fn higher_priority(_: higher_priority::Context) {
         loop {
-            Systick::delay(2.secs().into()).await;
+            Mono::delay(2_u64.secs().into()).await;
             defmt::info!("Higher priority task");
 
             // simulate a long running task

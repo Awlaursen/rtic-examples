@@ -1,19 +1,26 @@
 #![no_main]
 #![no_std]
-#![deny(warnings)]
-#![feature(type_alias_impl_trait)]
 
-use rtic::app;
-use rtic_examples as _; // global logger + panicking-behavior + memory layout
+use defmt_rtt as _; // global logger
+use fugit as _; // time units
+use panic_probe as _; // panic handler
+use stm32f4xx_hal as _; // memory layout // time abstractions
 
-#[app(device = stm32f4xx_hal::pac, dispatchers = [SPI1])]
+const SYSTICK_FREQ: u32 = 1_000;
+const CLOCK_FREQ: u32 = 84_000_000;
+
+use rtic_monotonics::{stm32::prelude::*, systick_monotonic};
+systick_monotonic!(Mono, SYSTICK_FREQ);
+
+#[rtic::app(device = stm32f4xx_hal::pac, dispatchers = [SPI1])]
 mod app {
     use core::sync::atomic::{AtomicUsize, Ordering};
-    use rtic_monotonics::{systick::Systick, Monotonic};
     use stm32f4xx_hal::{
         gpio::{Edge, Input, Output, Pin, PushPull},
         prelude::*,
     };
+    use defmt::info;
+    use super::*;
 
     // AtomicUsize is a thread-safe integer type
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -30,37 +37,33 @@ mod app {
     }
 
     #[init]
-    fn init(ctx: init::Context) -> (Shared, Local) {
+    fn init(mut ctx: init::Context) -> (Shared, Local) {
         defmt::info!("init");
 
-        // Cortex-M peripherals
-        let mut _core: cortex_m::Peripherals = ctx.core;
-
-        // Device specific peripherals
-        let mut _device: stm32f4xx_hal::pac::Peripherals = ctx.device;
-
-        rtic_examples::configure_clock!(_device, _core, 84.MHz());
+        // Configure the clock
+        Mono::start(ctx.core.SYST, CLOCK_FREQ);
+    
 
         // Set up the LED. On the Nucleo-F446RE it's connected to pin PA5.
-        let gpioa = _device.GPIOA.split();
+        let gpioa = ctx.device.GPIOA.split();
         let led = gpioa.pa5.into_push_pull_output();
 
         // Set up the button. On the Nucleo-F446RE it's connected to pin PC13.
-        let gpioc = _device.GPIOC.split();
+        let gpioc = ctx.device.GPIOC.split();
         let mut button = gpioc.pc13.into_floating_input();
 
         // Configure Button Pin for Interrupts
-        // 1) Promote SYSCFG structure to HAL to be able to configure interrupts
-        let mut sys_cfg = _device.SYSCFG.constrain();
+        // 1) Get the system configuration
+        let mut sys_cfg = ctx.device.SYSCFG.constrain();
         // 2) Make button an interrupt source
         button.make_interrupt_source(&mut sys_cfg);
-        // 3) Configure the interruption to be triggered on a rising edge
-        button.trigger_on_edge(&mut _device.EXTI, Edge::Falling);
+        // 3) Configure the interruption to be triggered on a falling edge
+        button.trigger_on_edge(&mut ctx.device.EXTI, Edge::Falling);
         // 4) Enable gpio interrupt for button
-        button.enable_interrupt(&mut _device.EXTI);
+        button.enable_interrupt(&mut ctx.device.EXTI);
 
         // Get the external interrupt controller so we can check which interrupt fired later
-        let exti = _device.EXTI;
+        let exti = ctx.device.EXTI;
 
         blink::spawn().ok();
 
@@ -78,12 +81,12 @@ mod app {
     #[task(local = [led], priority = 4)]
     async fn blink(ctx: blink::Context) {
         loop {
-            let t = Systick::now();
+            let t = Mono::now();
             // reset the counter and get the old value.
             let count = COUNTER.swap(0, Ordering::SeqCst);
             defmt::info!("{}", count);
             ctx.local.led.toggle();
-            Systick::delay_until(t + 1.secs()).await;
+            Mono::delay_until(t + 1_u64.secs()).await;
         }
     }
 
@@ -93,7 +96,7 @@ mod app {
     fn on_exti(ctx: on_exti::Context) {
         // Lock the mutex to get access to the EXTI peripheral
         let mut exti = ctx.shared.exti;
-        let is_button = exti.lock(|exti| exti.pr.read().pr13().bit_is_set());
+        let is_button = exti.lock(|exti| exti.pr().read().pr13().bit_is_set());
 
         // If it's not from the button, return
         if !is_button {

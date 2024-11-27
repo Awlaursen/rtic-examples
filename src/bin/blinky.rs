@@ -1,20 +1,24 @@
 #![no_main]
 #![no_std]
-#![deny(warnings)]
-#![feature(type_alias_impl_trait)]
 
-use rtic_examples as _; // global logger + panicking-behavior
-use rtic_monotonics::{
-    systick::Systick,
-    Monotonic,
-};
-use stm32f4xx_hal::{
-    gpio::{gpioa::PA5, Output, PushPull},
-    prelude::*,
-};
+use defmt_rtt as _; // global logger
+use fugit as _; // time units
+use panic_probe as _; // panic handler
+use stm32f4xx_hal as _; // memory layout // time abstractions
+
+use rtic_monotonics::{stm32::prelude::*, systick_monotonic};
+
+// Create a new monotonic resource called `Mono` that uses the SysTick timer
+// with a frequency of 1_000 Hz
+systick_monotonic!(Mono, 1_000);
+
 
 #[rtic::app(device = stm32f4xx_hal::pac, dispatchers = [USART1])]
 mod app {
+    use stm32f4xx_hal::{
+        gpio::{gpioa::PA5, Output, PushPull},
+        prelude::*,
+    };
     use defmt::info;
     use super::*;
 
@@ -35,14 +39,11 @@ mod app {
     fn init(ctx: init::Context) -> (Shared, Local) {
         info!("init");
 
-        // Device specific peripherals
-        let mut _device: stm32f4xx_hal::pac::Peripherals = ctx.device;
-        let mut _core: cortex_m::Peripherals = ctx.core;
-
-        rtic_examples::configure_clock!(_device, _core, 84.MHz());
+        // Configure the clock
+        Mono::start(ctx.core.SYST, 36_000_000);
 
         // Set up the LED. On the Nucleo-F446RE it's connected to pin PA5.
-        let gpioa = _device.GPIOA.split();
+        let gpioa = ctx.device.GPIOA.split();
         let led = gpioa.pa5.into_push_pull_output();
 
         defmt::info!("Init done!");
@@ -54,7 +55,6 @@ mod app {
     #[idle]
     fn idle(_: idle::Context) -> ! {
         loop {
-            continue;
         }
     }
 
@@ -62,11 +62,9 @@ mod app {
     #[task(local = [led], priority = 1)]
     async fn blink(ctx: blink::Context) {
         loop {
-            let t = Systick::now();
             ctx.local.led.toggle();
             defmt::info!("Blink!");
-            Systick::delay_until(t + 1.secs()).await;
+            Mono::delay(1_u64.secs()).await;
         }
-        
     }
 }

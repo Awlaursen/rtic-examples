@@ -8,16 +8,16 @@ edition = "2021"
 [dependencies]
 # General dependencies
 cortex-m = {version = "0.7.3", features = ["critical-section-single-core"]} # Cortex-M core
-stm32f4xx-hal = {version = "0.20.0", features = ["stm32f401", "rtic2"]} # HAL for STM32F4xx devices
+stm32f4xx-hal = {version = "0.22.1", features = ["stm32f401", "rtic2", "defmt"]} # HAL for STM32F4xx devices
 
 # knurling-rs dependencies (learn more at https://knurling.ferrous-systems.com/)
-defmt = { version = "0.3.6", features = ["encoding-rzcobs"] } # Logging framework
-defmt-brtt = {version = "0.1.1", features = ["rtt"] } # Enables logging over RTT
-panic-probe = { version = "0.3.1", features = ["print-defmt"] } # Panic handler using probe-rs / defmt
+defmt = { version = "0.3.9", features = ["encoding-rzcobs"] } # Logging framework
+defmt-rtt = {version = "0.4.1" } # Enables logging over RTT
+panic-probe = { version = "0.3.2", features = ["print-defmt"] } # Panic handler using probe-rs / defmt
 
 # Real-Time dependencies & tools
-rtic = { version = "2.1.0", features = ["thumbv7-backend"] } # RTIC framework for concurrency
-rtic-monotonics = {version = "1.5.0",features = ["cortex-m-systick", "systick-64bit"] }  # Monotonic timer for RTIC
+rtic = { version = "2.1.1", features = ["thumbv7-backend"] } # RTIC framework for concurrency
+rtic-monotonics = {version = "2.0.3", features = ["cortex-m-systick", "systick-64bit", "stm32f446re"] }  # Monotonic timer for RTIC
 fugit = {version = "0.3.7", features = ["defmt"] } # Duration and time handling
 
 
