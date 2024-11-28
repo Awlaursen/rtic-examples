@@ -38,7 +38,7 @@ mod app {
 
     #[init]
     fn init(mut ctx: init::Context) -> (Shared, Local) {
-        defmt::info!("init");
+        info!("init");
 
         // Configure the clock
         Mono::start(ctx.core.SYST, CLOCK_FREQ);
@@ -84,7 +84,7 @@ mod app {
             let t = Mono::now();
             // reset the counter and get the old value.
             let count = COUNTER.swap(0, Ordering::SeqCst);
-            defmt::info!("{}", count);
+            info!("{}", count);
             ctx.local.led.toggle();
             Mono::delay_until(t + 1_u64.secs()).await;
         }
@@ -100,14 +100,14 @@ mod app {
 
         // If it's not from the button, return
         if !is_button {
-            defmt::info!("not button");
+            info!("not button");
             ctx.local.button.clear_interrupt_pending_bit();
             return;
         }
 
         // Clear the interrupt pending bit as rtic does not do this automatically.
         ctx.local.button.clear_interrupt_pending_bit();
-        defmt::info!("incrementing");
+        info!("incrementing");
         COUNTER.fetch_add(1, Ordering::SeqCst);
     }
 }

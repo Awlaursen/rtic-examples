@@ -82,7 +82,7 @@ mod app {
     // Producer task that pushes a value to the buffer
     #[task(priority = 2, shared = [buffer])]
     async fn producer(ctx: producer::Context) {
-        Mono::delay(1_u64.secs().into()).await;
+        Mono::delay(1_u64.secs()).await;
 
         // Access the shared resources
         let mut buffer = ctx.shared.buffer;
@@ -103,7 +103,7 @@ mod app {
     #[task(priority = 3, shared = [buffer])]
     async fn consumer(ctx: consumer::Context) {
         defmt::info!("Consumer");
-        Mono::delay(1_u64.secs().into()).await;
+        Mono::delay(1_u64.secs()).await;
 
         // Access the shared resources
         let mut buffer = ctx.shared.buffer;

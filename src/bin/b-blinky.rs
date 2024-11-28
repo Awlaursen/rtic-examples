@@ -16,8 +16,7 @@ systick_monotonic!(Mono, 1_000);
 #[rtic::app(device = stm32f4xx_hal::pac, dispatchers = [USART1])]
 mod app {
     use stm32f4xx_hal::{
-        gpio::{gpioa::PA5, Output, PushPull},
-        prelude::*,
+        gpio::{gpioa::PA5, Output, PushPull}, prelude::*
     };
     use defmt::info;
     use super::*;
@@ -55,6 +54,7 @@ mod app {
     #[idle]
     fn idle(_: idle::Context) -> ! {
         loop {
+            continue;
         }
     }
 

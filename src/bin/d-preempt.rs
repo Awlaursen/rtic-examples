@@ -78,7 +78,7 @@ mod app {
     #[task(priority = 2)]
     async fn higher_priority(_: higher_priority::Context) {
         loop {
-            Mono::delay(2_u64.secs().into()).await;
+            Mono::delay(2_u64.secs()).await;
             defmt::info!("Higher priority task");
 
             // simulate a long running task
