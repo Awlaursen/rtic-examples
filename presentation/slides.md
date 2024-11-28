@@ -1,3 +1,5 @@
+
+
 # Embedded Rust for Real-Time Systems
 By Albert Werner Laursen
 
@@ -10,6 +12,7 @@ By Albert Werner Laursen
 4. Examples
 
 ---
+
 ## What is an RTOS?
 
 - What is an Operating System?
@@ -18,6 +21,7 @@ By Albert Werner Laursen
 + How does Rust fit in?
 
 ---
+
 ## State of RTOS in Rust
 
 - No real RTOS in Rust
@@ -28,6 +32,7 @@ By Albert Werner Laursen
   - "pseudo" threading
 
 ---
+
 ## Embassy
 
 - [embassy.dev](https://embassy.dev)
@@ -36,6 +41,7 @@ By Albert Werner Laursen
   - HAL, drivers, timing, etc.
 
 ---
+
 ## RTIC
 
 - [rtic.rs](https://rtic.rs)
@@ -45,7 +51,8 @@ By Albert Werner Laursen
   - preemptive deadlock and race-free scheduling
 
 ---
-## Async/Await
+
+## Async / Await
 
 - Read the [Async Book](https://rust-lang.github.io/async-book/)
 - Rust core feature
@@ -57,7 +64,7 @@ By Albert Werner Laursen
 
 `async fn` is syntactic sugar
     
-```rust
+```rust []
 async fn foo() -> u32 {
     42
 }
@@ -71,10 +78,12 @@ fn foo() -> impl Future<Output = u32> {
 
 So what is a Future?
 
-```rust
+```rust []
 trait Future {
     type Output;
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output>;
+    fn poll(
+      self: Pin<&mut Self>, cx: &mut Context<'_>
+    ) -> Poll<Self::Output>;
 }
 
 enum Poll<T> {
@@ -84,6 +93,7 @@ enum Poll<T> {
 ```
 
 ---
+
 A Future is a state machine
 
 ```mermaid
@@ -91,17 +101,16 @@ graph LR
     A[Start] --> B{Poll}
     B -->|Ready| C[Output]
     B -->|Pending| D[Wait]
-    D --> B
-
-```
+    D -->|Wake| B
+``` 
 
 ---
 
-async/await is an ergonomic way to work with Futures
+`async`/`await` is an ergonomic way to work with Futures
 
-```rust
+```rust []
 async fn get_data() -> Result<Data, Error> {
-    let response = fetch("https://example.com/data").await?;
+    let response = fetch("https://data.com").await?;
     let data = parse(response).await?;
     Ok(data)
 }
@@ -119,9 +128,60 @@ graph TD
     B -->|poll| D[send]
     B -->|poll| E[recieve]
     C -->|poll| F[logic]
-
-
 ```
 
 ---
 
+An executor is responsible for polling the Future
+
+```rust []
+fn unary_executor() -> ! {
+    let root_future = get_data();
+    loop {
+        match my_future.poll() {
+            Poll::Ready(output) => do_something(output);
+            Poll::Pending => {}
+        }
+    }
+}
+```
+
+---
+
+Concurrency is achieved by running multiple Futures
+
+```rust
+fn executor() -> ! {
+    let futures: Vec<Future> = get_futures();
+    loop {
+        for future in futures.iter_mut() {
+            match future.poll() {
+                Poll::Ready(output) => do_something(output);
+                Poll::Pending => {}
+            }
+        }
+    }
+}
+```
+
+---
+
+- Executor logic is what differentiates async frameworks
+  - `tokio`, `async-std`, etc.
+  - `embassy`, `rtic`, etc.
+- This is cooperative multitasking
+  - No real preemption
+  - shorter futures -> real concurrency
+  - longer futures -> blocking
+
+---
+
+## Examples
+
+- We will focus on the `rtic` framework
+  - `embassy` is very similar
+  - `rtic` is race-free
+  
+```bash
+git clone https://github.com/Awlaursen/rtic-examples.git
+```
