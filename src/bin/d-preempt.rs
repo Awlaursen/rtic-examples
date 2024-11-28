@@ -14,8 +14,10 @@ systick_monotonic!(Mono, SYSTICK_FREQ);
 
 #[rtic::app(device = stm32f4xx_hal::pac, dispatchers = [USART1, USART2])]
 mod app {
-    use stm32f4xx_hal::
-        gpio::{Output, PushPull, PA5}
+    use stm32f4xx_hal::{
+        gpio::{Output, PushPull, PA5},
+        prelude::*
+    }
     ;
     use defmt::{debug, info};
     use super::*;
